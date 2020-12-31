@@ -1,6 +1,7 @@
 use libpulse_binding::sample;
 use libpulse_binding::stream::Direction;
 use libpulse_simple_binding::Simple;
+use rustfft::{FFT, FFTplanner, num_complex::Complex};
 use mutunga::{Canvas, Cell, Color, TerminalCanvas};
 use std::{fmt, mem, thread, time};
 
@@ -17,10 +18,11 @@ impl fmt::Display for StereoSampleFrame {
 	}
 }
 
-const FPS: usize = 20;
+const FPS: usize = 60;
 const SAMPLE_FREQ: usize = 44100;
 const SAMPLE_SIZE: usize = SAMPLE_FREQ / FPS;
-const BUFFER_SIZE: usize = mem::size_of::<StereoSampleFrame>() * (SAMPLE_SIZE / 3);
+const BUFFER_SIZE: usize = mem::size_of::<StereoSampleFrame>() * SAMPLE_SIZE;
+const DATA_SIZE: usize = BUFFER_SIZE / mem::size_of::<StereoSampleFrame>();
 
 fn main() {
 	let mut term = TerminalCanvas::new();
@@ -44,6 +46,7 @@ fn main() {
 	.unwrap();
 
 	let mut frame = 0;
+	let mut data = [0u8; BUFFER_SIZE];
 	loop {
 		frame += 1;
 		let canvas = term.canvas_mut();
@@ -51,62 +54,102 @@ fn main() {
 		let w = canvas.width() as i32;
 		let h = canvas.height() as i32;
 
-		let mut data = [0u8; BUFFER_SIZE];
 		s.read(&mut data).unwrap();
-		s.flush();
 
-		let data: [StereoSampleFrame; BUFFER_SIZE / 8] = unsafe { mem::transmute(data) };
+		let pcm_sample: &[StereoSampleFrame; DATA_SIZE] = unsafe { mem::transmute(&data) };
 
 		let lag = s.get_latency().unwrap();
 
-		let pcm_sample: Vec<StereoSampleFrame> = data.into();
-		let output = pcm_sample
-			.iter()
-			.map(|s| format!("({}, {})", s.l, s.r))
-			.collect::<Vec<String>>()
-			.join(", ");
-
-		canvas.draw_text(0, 0, Color::red(), Color::transparent(), &format!("{}", frame));
+		let mut interval = pcm_sample.len() / w as usize / 2;
+		if interval == 0 {
+			interval = 1;
+		}
 		canvas.draw_text(
-			2,
-			2,
-			Color::red(),
+			1, 1,
+			Color::green(),
 			Color::transparent(),
-			&format!("Sample Len: {} -- {}", pcm_sample.len(), pcm_sample[0]),
+			&format!("Frame: {}   Sample length: {}   Latency: {}    FPS: {}   Int: {}", frame, pcm_sample.len(), lag, FPS, interval),
 		);
 
-		let interval = pcm_sample.len() / w as usize;
-		for x in 0..w {
+		// Wave visualiser
+		for x in 0..(w / 2) {
 			let idx = x as usize * interval;
 			let l0 = pcm_sample[idx].l;
 			let r0 = pcm_sample[idx].r;
 			let l1 = pcm_sample[idx + interval].l;
 			let r1 = pcm_sample[idx + interval].r;
 
-			let size = (h / 2) as f32;
-			let left_offset = (h / 2) - (h / 4);
-			let right_offset = (h / 2) + (h / 4);
+			let size = (h / 4) as f32;
+			let left_offset = 0;
+			let right_offset = w / 2;
 
 			canvas.draw_line(
 				x,
-				left_offset + (size * l0) as i32,
+				(h / 4) + (size * l0) as i32,
 				x,
-				left_offset + (size * l1) as i32,
+				(h / 4) + (size * l1) as i32,
 				Cell {
-					bg: Color::blue(),
-					fg: Color::white(),
+					bg: Color::magenta(),
+					fg: Color::black(),
 					symbol: ' ',
 				},
 			);
 
 			canvas.draw_line(
-				x,
-				right_offset + (size * r0) as i32,
-				x,
-				right_offset + (size * r1) as i32,
+				x + right_offset,
+				(h / 4) + (size * r0) as i32,
+				x + right_offset,
+				(h / 4) + (size * r1) as i32,
 				Cell {
-					bg: Color::red(),
-					fg: Color::white(),
+					bg: Color::yellow(),
+					fg: Color::black(),
+					symbol: ' ',
+				},
+			);
+		}
+
+		// Spectrum visualiser
+		let mut planner = FFTplanner::new(false);
+		let fft = planner.plan_fft(DATA_SIZE);
+		let mut left_input: Vec<Complex<f32>> = pcm_sample.iter().map(|s| Complex { re: s.l, im: 0.0 }).collect();
+		let mut left_output = vec![Complex{ re: 0.0, im: 0.0 }; DATA_SIZE];
+		fft.process(&mut left_input, &mut left_output);
+
+		let mut right_input: Vec<Complex<f32>> = pcm_sample.iter().map(|s| Complex { re: s.r, im: 0.0 }).collect();
+		let mut right_output = vec![Complex{ re: 0.0, im: 0.0 }; DATA_SIZE];
+		fft.process(&mut right_input, &mut right_output);
+
+
+		let scale = 1.0 / (DATA_SIZE as f32).sqrt();
+		for x in 0..(w / 2) {
+			let idx = x as usize * interval;
+			let l0 = left_output[idx].re * scale;
+			let r0 = right_output[idx].re * scale;
+
+			let size = (h / 4) as f32;
+			let left_offset = 0;
+			let right_offset = w / 2;
+
+			canvas.draw_line(
+				x,
+				h - 1,
+				x,
+				h - 1 + (size * -l0.abs()) as i32,
+				Cell {
+					bg: Color::green(),
+					fg: Color::black(),
+					symbol: ' ',
+				},
+			);
+
+			canvas.draw_line(
+				x + right_offset,
+				h - 1,
+				x + right_offset,
+				h - 1 + (size * -r0.abs()) as i32,
+				Cell {
+					bg: Color::cyan(),
+					fg: Color::black(),
 					symbol: ' ',
 				},
 			);
