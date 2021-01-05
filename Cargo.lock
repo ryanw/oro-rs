@@ -69,6 +69,7 @@ dependencies = [
 [[package]]
 name = "mutunga"
 version = "0.1.0"
+source = "git+https://github.com/ryanw/mutunga-rs#1e94d3a45b3448c102b4b3f957236aa5ad0d30c8"
 dependencies = [
  "libc",
 ]
@@ -129,6 +130,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
 
 [[package]]
+name = "primal-check"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01419cee72c1a1ca944554e23d83e483e1bccf378753344e881de28b5487511d"
+dependencies = [
+ "num-integer",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -148,13 +158,14 @@ dependencies = [
 
 [[package]]
 name = "rustfft"
-version = "4.1.0"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f107ffb2ec15915d932b7b1537fe4d6efb36955ee2b06f8f759c80a0725f80b1"
+checksum = "615fb8169a56470f08d8c51b4754c6f34bf515fc0129549e8d40dac733e141bd"
 dependencies = [
  "num-complex",
  "num-integer",
  "num-traits",
+ "primal-check",
  "strength_reduce",
  "transpose",
 ]

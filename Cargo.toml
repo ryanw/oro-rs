@@ -9,5 +9,5 @@ edition = "2018"
 [dependencies]
 libpulse-simple-binding = "2.20.1"
 libpulse-binding = "2.22.0"
-rustfft = "4.1.0"
+rustfft = "5.0.0"
 mutunga = { git = "https://github.com/ryanw/mutunga-rs" }

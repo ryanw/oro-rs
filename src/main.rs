@@ -1,9 +1,9 @@
 use libpulse_binding::sample;
 use libpulse_binding::stream::Direction;
 use libpulse_simple_binding::Simple;
-use rustfft::{FFT, FFTplanner, num_complex::Complex};
-use mutunga::{Canvas, Cell, Color, TerminalCanvas};
-use std::{fmt, mem, thread, time};
+use mutunga::{Cell, Color, TerminalCanvas};
+use rustfft::{num_complex::Complex, FftPlanner};
+use std::{fmt, mem};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -45,10 +45,8 @@ fn main() {
 	)
 	.unwrap();
 
-	let mut frame = 0;
 	let mut data = [0u8; BUFFER_SIZE];
 	loop {
-		frame += 1;
 		let canvas = term.canvas_mut();
 		canvas.clear();
 		let w = canvas.width() as i32;
@@ -58,21 +56,13 @@ fn main() {
 
 		let pcm_sample: &[StereoSampleFrame; DATA_SIZE] = unsafe { mem::transmute(&data) };
 
-		let lag = s.get_latency().unwrap();
-
-		let mut interval = pcm_sample.len() / w as usize / 2;
+		let mut interval = pcm_sample.len() / w as usize / 4;
 		if interval == 0 {
 			interval = 1;
 		}
-		canvas.draw_text(
-			1, 1,
-			Color::green(),
-			Color::transparent(),
-			&format!("Frame: {}   Sample length: {}   Latency: {}    FPS: {}   Int: {}", frame, pcm_sample.len(), lag, FPS, interval),
-		);
 
 		// Wave visualiser
-		for x in 0..(w / 2) {
+		for x in 0..w {
 			let idx = x as usize * interval;
 			let l0 = pcm_sample[idx].l;
 			let r0 = pcm_sample[idx].r;
@@ -80,28 +70,25 @@ fn main() {
 			let r1 = pcm_sample[idx + interval].r;
 
 			let size = (h / 4) as f32;
-			let left_offset = 0;
-			let right_offset = w / 2;
-
 			canvas.draw_line(
 				x,
 				(h / 4) + (size * l0) as i32,
 				x,
 				(h / 4) + (size * l1) as i32,
 				Cell {
-					bg: Color::magenta(),
+					bg: Color::yellow(),
 					fg: Color::black(),
 					symbol: ' ',
 				},
 			);
 
 			canvas.draw_line(
-				x + right_offset,
-				(h / 4) + (size * r0) as i32,
-				x + right_offset,
-				(h / 4) + (size * r1) as i32,
+				x,
+				h - (h / 4) + (size * r0) as i32,
+				x,
+				h - (h / 4) + (size * r1) as i32,
 				Cell {
-					bg: Color::yellow(),
+					bg: Color::magenta(),
 					fg: Color::black(),
 					symbol: ' ',
 				},
@@ -109,50 +96,50 @@ fn main() {
 		}
 
 		// Spectrum visualiser
-		let mut planner = FFTplanner::new(false);
-		let fft = planner.plan_fft(DATA_SIZE);
-		let mut left_input: Vec<Complex<f32>> = pcm_sample.iter().map(|s| Complex { re: s.l, im: 0.0 }).collect();
-		let mut left_output = vec![Complex{ re: 0.0, im: 0.0 }; DATA_SIZE];
-		fft.process(&mut left_input, &mut left_output);
+		let mut planner = FftPlanner::new();
+		let fft = planner.plan_fft_forward(DATA_SIZE);
+		let mut left_output: Vec<Complex<f32>> = pcm_sample.iter().map(|s| Complex { re: s.l, im: 0.0 }).collect();
+		fft.process(&mut left_output);
 
-		let mut right_input: Vec<Complex<f32>> = pcm_sample.iter().map(|s| Complex { re: s.r, im: 0.0 }).collect();
-		let mut right_output = vec![Complex{ re: 0.0, im: 0.0 }; DATA_SIZE];
-		fft.process(&mut right_input, &mut right_output);
-
+		let mut right_output: Vec<Complex<f32>> = pcm_sample.iter().map(|s| Complex { re: s.r, im: 0.0 }).collect();
+		fft.process(&mut right_output);
 
 		let scale = 1.0 / (DATA_SIZE as f32).sqrt();
-		for x in 0..(w / 2) {
+		for x in 0..w {
 			let idx = x as usize * interval;
-			let l0 = left_output[idx].re * scale;
-			let r0 = right_output[idx].re * scale;
+			let l0 = left_output[idx].scale(scale).to_polar().0;
+			let r0 = right_output[idx].scale(scale).to_polar().0;
 
 			let size = (h / 4) as f32;
-			let left_offset = 0;
-			let right_offset = w / 2;
+			let min = 0.05;
 
-			canvas.draw_line(
-				x,
-				h - 1,
-				x,
-				h - 1 + (size * -l0.abs()) as i32,
-				Cell {
-					bg: Color::green(),
-					fg: Color::black(),
-					symbol: ' ',
-				},
-			);
+			if l0.abs() >= min {
+				canvas.draw_line(
+					x,
+					h / 2,
+					x,
+					h / 2 + (-size * l0) as i32,
+					Cell {
+						bg: Color::red(),
+						fg: Color::black(),
+						symbol: ' ',
+					},
+				);
+			}
 
-			canvas.draw_line(
-				x + right_offset,
-				h - 1,
-				x + right_offset,
-				h - 1 + (size * -r0.abs()) as i32,
-				Cell {
-					bg: Color::cyan(),
-					fg: Color::black(),
-					symbol: ' ',
-				},
-			);
+			if r0.abs() >= min {
+				canvas.draw_line(
+					x,
+					1 + h / 2,
+					x,
+					1 + h / 2 + (size * r0) as i32,
+					Cell {
+						bg: Color::green(),
+						fg: Color::black(),
+						symbol: ' ',
+					},
+				);
+			}
 		}
 
 		term.present().expect("Failed to present terminal");
