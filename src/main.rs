@@ -69,7 +69,7 @@ fn main() {
 			let l1 = pcm_sample[idx + interval].l;
 			let r1 = pcm_sample[idx + interval].r;
 
-			let size = (h / 4) as f32;
+			let size = (h / 2) as f32;
 			canvas.draw_line(
 				x,
 				(h / 4) + (size * l0) as i32,
@@ -120,9 +120,9 @@ fn main() {
 					x,
 					h / 2 + (-size * l0) as i32,
 					Cell {
-						bg: Color::red(),
-						fg: Color::black(),
-						symbol: ' ',
+						bg: Color::transparent(),
+						fg: Color::red(),
+						symbol: '▌',
 					},
 				);
 			}
@@ -134,9 +134,9 @@ fn main() {
 					x,
 					1 + h / 2 + (size * r0) as i32,
 					Cell {
-						bg: Color::green(),
-						fg: Color::black(),
-						symbol: ' ',
+						bg: Color::transparent(),
+						fg: Color::green(),
+						symbol: '▌',
 					},
 				);
 			}
