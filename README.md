@@ -4,5 +4,5 @@ A hacked together tool to draw the wave and frequencies of the current PulseAudi
 
 ## Video of the action
 
-Click the GIF to see the video  
-[![Visualiser in action](https://user-images.githubusercontent.com/3372/103746267-b3990100-5065-11eb-8008-c0c3ce540d1c.gif)](https://youtu.be/Pc35vH32xsw)
+Click the GIF to it in a higher framerate.  
+[![Visualiser in action](https://user-images.githubusercontent.com/3372/104080924-166de080-5290-11eb-8708-d84691807973.gif)](https://youtu.be/0rmzJW-_YwM)

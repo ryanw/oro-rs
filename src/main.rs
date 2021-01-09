@@ -48,7 +48,6 @@ fn main() {
 	let mut data = [0u8; BUFFER_SIZE];
 	loop {
 		let canvas = term.canvas_mut();
-		canvas.clear();
 		let w = canvas.width() as i32;
 		let h = canvas.height() as i32;
 
@@ -56,11 +55,12 @@ fn main() {
 
 		let pcm_sample: &[StereoSampleFrame; DATA_SIZE] = unsafe { mem::transmute(&data) };
 
-		let mut interval = pcm_sample.len() / w as usize / 4;
+		let mut interval = pcm_sample.len() / w as usize / 2;
 		if interval == 0 {
 			interval = 1;
 		}
 
+		canvas.clear();
 		// Wave visualiser
 		for x in 0..w {
 			let idx = x as usize * interval;
@@ -69,16 +69,16 @@ fn main() {
 			let l1 = pcm_sample[idx + interval].l;
 			let r1 = pcm_sample[idx + interval].r;
 
-			let size = (h / 2) as f32;
+			let size = (h / 3) as f32;
 			canvas.draw_line(
 				x,
 				(h / 4) + (size * l0) as i32,
 				x,
 				(h / 4) + (size * l1) as i32,
 				Cell {
-					bg: Color::yellow(),
-					fg: Color::black(),
-					symbol: ' ',
+					bg: Color::transparent(),
+					fg: Color::yellow(),
+					symbol: '▒',
 				},
 			);
 
@@ -88,14 +88,18 @@ fn main() {
 				x,
 				h - (h / 4) + (size * r1) as i32,
 				Cell {
-					bg: Color::magenta(),
-					fg: Color::black(),
-					symbol: ' ',
+					bg: Color::transparent(),
+					fg: Color::cyan(),
+					symbol: '▒',
 				},
 			);
 		}
 
 		// Spectrum visualiser
+		let mut interval = pcm_sample.len() / w as usize / 4;
+		if interval == 0 {
+			interval = 1;
+		}
 		let mut planner = FftPlanner::new();
 		let fft = planner.plan_fft_forward(DATA_SIZE);
 		let mut left_output: Vec<Complex<f32>> = pcm_sample.iter().map(|s| Complex { re: s.l, im: 0.0 }).collect();
@@ -105,38 +109,38 @@ fn main() {
 		fft.process(&mut right_output);
 
 		let scale = 1.0 / (DATA_SIZE as f32).sqrt();
-		for x in 0..w {
-			let idx = x as usize * interval;
-			let l0 = left_output[idx].scale(scale).to_polar().0;
-			let r0 = right_output[idx].scale(scale).to_polar().0;
+		for x in 0..=(w / 2) {
+			let idx = x as usize * interval * 2;
+			let l0 = left_output[idx].scale(scale).to_polar().0.powf(0.5);
+			let r0 = right_output[idx].scale(scale).to_polar().0.powf(0.5);
 
 			let size = (h / 4) as f32;
 			let min = 0.05;
 
 			if l0.abs() >= min {
 				canvas.draw_line(
-					x,
-					h / 2,
-					x,
+					(w / 2) - x - 1,
+					h / 2 + (size * l0) as i32,
+					(w / 2) - x - 1,
 					h / 2 + (-size * l0) as i32,
 					Cell {
 						bg: Color::transparent(),
-						fg: Color::red(),
-						symbol: '▌',
+						fg: Color::magenta(),
+						symbol: '▉',
 					},
 				);
 			}
 
 			if r0.abs() >= min {
 				canvas.draw_line(
-					x,
-					1 + h / 2,
-					x,
-					1 + h / 2 + (size * r0) as i32,
+					(w / 2) + x,
+					h / 2 + (size * r0) as i32,
+					(w / 2) + x,
+					h / 2 + (-size * r0) as i32,
 					Cell {
 						bg: Color::transparent(),
 						fg: Color::green(),
-						symbol: '▌',
+						symbol: '▉',
 					},
 				);
 			}
